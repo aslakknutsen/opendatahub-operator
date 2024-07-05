@@ -1,0 +1,18 @@
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: {{ .ControlPlane.IngressGateway.Name }}
+  namespace: {{ .ControlPlane.IngressGateway.Namespace }}
+spec:
+  selector:
+    {{ .ControlPlane.IngressGateway.LabelSelectorKey }} : {{ .ControlPlane.IngressGateway.LabelSelectorValue }}
+  servers:
+    - hosts:
+        - '*.{{ .Domain }}'
+      port:
+        name: https
+        number: 443
+        protocol: HTTPS
+      tls:
+        credentialName: {{ .Secret }}
+        mode: SIMPLE

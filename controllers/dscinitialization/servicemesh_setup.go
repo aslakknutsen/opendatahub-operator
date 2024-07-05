@@ -14,7 +14,12 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/manifest"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/provider"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
+)
+
+const (
+	DefaultCertificateSecretName = "gateway-cert"
 )
 
 func (r *DSCInitializationReconciler) configureServiceMesh(ctx context.Context, instance *dsciv1.DSCInitialization) error {
@@ -170,7 +175,46 @@ func (r *DSCInitializationReconciler) serviceMeshCapabilityFeatures(instance *ds
 				WithData(
 					servicemesh.FeatureData.Authorization.All(&instance.Spec)...,
 				),
-		)
+			feature.Define("mesh-ingress-ns-creation").
+				Manifests(
+					manifest.Location(Templates.Location).
+						Include(
+							path.Join(Templates.ServiceMeshIngressDir, "servicemeshmember.tmpl.yaml"),
+						),
+				).
+				Managed().
+				WithData(servicemesh.FeatureData.ControlPlane.Define(&instance.Spec).AsAction()).
+				PreConditions(
+					servicemesh.EnsureServiceMeshOperatorInstalled,
+					feature.CreateNamespaceIfNotExists(controlPlaneSpec.IngressGateway.Namespace),
+				).
+				PostConditions(
+					feature.WaitForServiceMeshMember(controlPlaneSpec.IngressGateway.Namespace),
+				),
+			feature.Define("mesh-ingress-creation").
+				Manifests(
+					manifest.Location(Templates.Location).
+						Include(
+							path.Join(Templates.ServiceMeshIngressDir, "service.tmpl.yaml"),
+							path.Join(Templates.ServiceMeshIngressDir, "role.tmpl.yaml"),
+							path.Join(Templates.ServiceMeshIngressDir, "rolebinding.tmpl.yaml"),
+							path.Join(Templates.ServiceMeshIngressDir, "deployment.tmpl.yaml"),
+							path.Join(Templates.ServiceMeshIngressDir, "gateway.tmpl.yaml"),
+						),
+				).
+				Managed().
+				WithResources(servicemesh.GatewayCertificateResource).
+				WithData(servicemesh.FeatureData.ControlPlane.Define(&instance.Spec).AsAction()).
+				// TODO: if else data logic should be wrapped in FeatureData? Relying on this else mapping in GatewayCertificateResource to avoid dup
+				WithData(feature.Entry("Domain", provider.ValueOf(controlPlaneSpec.IngressGateway.Gateway.Domain).OrGet(cluster.GetDomain))).
+				WithData(feature.Entry("Secret", provider.ValueOf(controlPlaneSpec.IngressGateway.Gateway.Certificate.SecretName).OrElse(DefaultCertificateSecretName))).
+				PreConditions(
+					servicemesh.EnsureServiceMeshOperatorInstalled,
+					feature.CreateNamespaceIfNotExists(controlPlaneSpec.IngressGateway.Namespace),
+				).
+				PostConditions(
+					feature.WaitForPodsToBeReady(controlPlaneSpec.IngressGateway.Namespace),
+				))
 	}
 }
 

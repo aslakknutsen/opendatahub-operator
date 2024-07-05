@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .ControlPlane.IngressGateway.Name }}
+  namespace: {{ .ControlPlane.IngressGateway.Namespace }}
+spec:
+  selector:
+    matchLabels:
+      {{ .ControlPlane.IngressGateway.LabelSelectorKey }} : {{ .ControlPlane.IngressGateway.LabelSelectorValue }}
+      
+  template:
+    metadata:
+      annotations:
+        inject.istio.io/templates: gateway
+      labels:
+        {{ .ControlPlane.IngressGateway.LabelSelectorKey }} : {{ .ControlPlane.IngressGateway.LabelSelectorValue }}
+        sidecar.istio.io/inject: "true" 
+    spec:
+      containers:
+      - name: istio-proxy
+        image: auto 

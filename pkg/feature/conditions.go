@@ -127,3 +127,43 @@ func WaitForResourceToBeCreated(namespace string, gvk schema.GroupVersionKind) A
 		})
 	}
 }
+
+func WaitForServiceMeshMember(namespace string) Action {
+	return func(ctx context.Context, f *Feature) error {
+		gvk := schema.GroupVersionKind{
+			Version: "maistra.io/v1",
+			Kind:    "ServiceMeshMember",
+		}
+		f.Log.Info("waiting for resource to be created", "namespace", namespace, "resource", gvk)
+
+		return wait.PollUntilContextTimeout(ctx, interval, duration, false, func(ctx context.Context) (bool, error) {
+			smm := &unstructured.Unstructured{}
+			smm.SetGroupVersionKind(gvk)
+
+			err := f.Client.Get(ctx, client.ObjectKey{Namespace: namespace, Name: "default"}, smm)
+			if err != nil {
+				f.Log.Error(err, "failed waiting for resource", "namespace", namespace, "resource", gvk)
+
+				return false, err
+			}
+
+			conditions, found, err := unstructured.NestedSlice(smm.Object, "status", "conditions")
+			if err != nil {
+				return false, err
+			}
+			if !found {
+				return false, nil
+			}
+			for _, condition := range conditions {
+				if cond, ok := condition.(map[string]interface{}); ok {
+					conType, _, _ := unstructured.NestedString(cond, "type")
+					conStatus, _, _ := unstructured.NestedString(cond, "status")
+					if conType == "Ready" && conStatus == "True" {
+						return true, nil
+					}
+				}
+			}
+			return false, nil
+		})
+	}
+}

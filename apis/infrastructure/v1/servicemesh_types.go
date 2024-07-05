@@ -28,8 +28,29 @@ type ControlPlaneSpec struct {
 	// +kubebuilder:validation:Enum=Istio;None
 	// +kubebuilder:default=Istio
 	MetricsCollection string `json:"metricsCollection,omitempty"`
+	//IngressGatewaySpec specifices where the Service Meshs Ingress gateway should behave
+	IngressGateway RealIngressGatewaySpec `json:"ingressGateway,omitempty"`
 }
 
+type RealIngressGatewaySpec struct {
+	// Namespace is a namespace where the Service Mesh Ingress should be deployed is deployed. Defaults to "opendatahub-ingress".
+	// +kubebuilder:default=opendatahub-ingress
+	Namespace string `json:"namespace,omitempty"`
+	// Name is the name of the Ingress Gateway Service
+	// +kubebuilder:default=istio-ingressgateway
+	Name string `json:"name,omitempty"` // TODO: Not API
+	// LabelSelectorKey is a key:value defining the label to use for the ingress gateway objects
+	// +kubebuilder:default="opendatahub"
+	LabelSelectorKey string `json:"labelSelectorKey,omitempty"` // TODO: Not API
+	// LabelSelectorValue is a key:value defining the label to use for the ingress gateway objects
+	// +kubebuilder:default="ingressgateway"
+	LabelSelectorValue string `json:"labelSelectorValue,omitempty"` // TODO: Not API
+	//Gateway holds configuration for the default Gateway
+	//TODO: Should Ceritifacte be extracted at a higher level, a more common place between Istio, KNative ++?
+	Gateway IngressGatewaySpec `json:"gateway,omitempty"`
+}
+
+// TODO: Isn't this really GatewaySpec?
 // IngressGatewaySpec represents the configuration of the Ingress Gateways.
 type IngressGatewaySpec struct {
 	// Domain specifies the DNS name for intercepting ingress requests coming from
