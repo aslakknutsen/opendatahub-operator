@@ -129,6 +129,68 @@ spec:
                     description: ControlPlane holds configuration of Service Mesh
                       used by Opendatahub.
                     properties:
+                      ingressGateway:
+                        description: IngressGatewaySpec specifices where the Service
+                          Meshs Ingress gateway should behave
+                        properties:
+                          gateway:
+                            description: |-
+                              Gateway holds configuration for the default Gateway
+                              TODO: Should Ceritifacte be extracted at a higher level, a more common place between Istio, KNative ++?
+                            properties:
+                              certificate:
+                                description: |-
+                                  Certificate specifies configuration of the TLS certificate securing communications of
+                                  the for Ingress Gateway.
+                                properties:
+                                  secretName:
+                                    description: |-
+                                      SecretName specifies the name of the Kubernetes Secret resource that contains a
+                                      TLS certificate secure HTTP communications for the KNative network.
+                                    type: string
+                                  type:
+                                    default: OpenshiftDefaultIngress
+                                    description: |-
+                                      Type specifies if the TLS certificate should be generated automatically, or if the certificate
+                                      is provided by the user. Allowed values are:
+                                      * SelfSigned: A certificate is going to be generated using an own private key.
+                                      * Provided: Pre-existence of the TLS Secret (see SecretName) with a valid certificate is assumed.
+                                      * OpenshiftDefaultIngress: Default ingress certificate configured for OpenShift
+                                    enum:
+                                    - SelfSigned
+                                    - Provided
+                                    - OpenshiftDefaultIngress
+                                    type: string
+                                type: object
+                              domain:
+                                description: |-
+                                  Domain specifies the DNS name for intercepting ingress requests coming from
+                                  outside the cluster. Most likely, you will want to use a wildcard name,
+                                  like *.example.com. If not set, the domain of the OpenShift Ingress is used.
+                                  If you choose to generate a certificate, this is the domain used for the certificate request.
+                                type: string
+                            type: object
+                          labelSelectorKey:
+                            default: opendatahub
+                            description: LabelSelectorKey is a key:value defining
+                              the label to use for the ingress gateway objects
+                            type: string
+                          labelSelectorValue:
+                            default: ingressgateway
+                            description: LabelSelectorValue is a key:value defining
+                              the label to use for the ingress gateway objects
+                            type: string
+                          name:
+                            default: istio-ingressgateway
+                            description: Name is the name of the Ingress Gateway Service
+                            type: string
+                          namespace:
+                            default: opendatahub-ingress
+                            description: Namespace is a namespace where the Service
+                              Mesh Ingress should be deployed is deployed. Defaults
+                              to "opendatahub-ingress".
+                            type: string
+                        type: object
                       metricsCollection:
                         default: Istio
                         description: |-

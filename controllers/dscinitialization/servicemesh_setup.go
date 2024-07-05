@@ -14,6 +14,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/manifest"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/provider"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 )
 
@@ -144,6 +145,25 @@ func (r *DSCInitializationReconciler) serviceMeshCapabilityFeatures(instance *ds
 				feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),
 			)
 
+			// TODO: Where should we deploy the DEFAULT Gateway? Opendatahub? ingress-gw-namespace?
+		smcpIngess := feature.Define("mesh-ingress-creation").
+			Manifests(
+				manifest.Location(Templates.Location).
+					Include(
+						path.Join(Templates.ServiceMeshIngressDir),
+					),
+			).
+			WithData(servicemesh.FeatureData.ControlPlane.Create(&instance.Spec).AsAction()).
+			WithData(feature.Entry("Domain", provider.ValueOf(serviceMeshSpec.ControlPlane.IngressGateway.Gateway.Domain).OrGet(cluster.GetDomain))).
+			//WithData(feature.Entry("Secret", provider.ValueOf(serviceMeshSpec.ControlPlane.IngressGateway.Gateway.Certificate).OrElse(DefaultCertificateSecretName))).
+			PreConditions(
+				servicemesh.EnsureServiceMeshOperatorInstalled,
+				feature.CreateNamespaceIfNotExists(serviceMeshSpec.ControlPlane.IngressGateway.Namespace),
+			).
+			PostConditions(
+				feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.IngressGateway.Namespace),
+			)
+
 		if serviceMeshSpec.ControlPlane.MetricsCollection == "Istio" {
 			metricsCollectionErr := registry.Add(feature.Define("mesh-metrics-collection").
 				Manifests(
@@ -173,7 +193,7 @@ func (r *DSCInitializationReconciler) serviceMeshCapabilityFeatures(instance *ds
 				servicemesh.FeatureData.Authorization.All(&instance.Spec)...,
 			)
 
-		return registry.Add(smcp, cfgMap)
+		return registry.Add(smcp, smcpIngess, cfgMap)
 	}
 }
 

@@ -14,6 +14,8 @@ const baseDir = "resources"
 var Templates = struct {
 	// ServiceMeshDir is the path to the Service Mesh templates.
 	ServiceMeshDir string
+	// ServiceMeshIngressDir is the path to the Service Mesh Ingress templates.
+	ServiceMeshIngressDir string
 	// AuthorinoDir is the path to the Authorino templates.
 	AuthorinoDir string
 	// MetricsDir is the path to the Metrics Collection templates.
@@ -23,9 +25,10 @@ var Templates = struct {
 	// BaseDir is the path to the base of the embedded FS
 	BaseDir string
 }{
-	ServiceMeshDir: path.Join(baseDir, "servicemesh"),
-	AuthorinoDir:   path.Join(baseDir, "authorino"),
-	MetricsDir:     path.Join(baseDir, "metrics-collection"),
-	Location:       dsciEmbeddedFS,
-	BaseDir:        baseDir,
+	ServiceMeshDir:        path.Join(baseDir, "servicemesh"),
+	ServiceMeshIngressDir: path.Join(baseDir, "servicemesh-ingress"),
+	AuthorinoDir:          path.Join(baseDir, "authorino"),
+	MetricsDir:            path.Join(baseDir, "metrics-collection"),
+	Location:              dsciEmbeddedFS,
+	BaseDir:               baseDir,
 }

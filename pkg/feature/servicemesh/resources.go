@@ -22,8 +22,14 @@ func MeshRefs(ctx context.Context, f *feature.Feature) error {
 	namespace := f.TargetNamespace
 
 	data := map[string]string{
-		"CONTROL_PLANE_NAME": meshConfig.Name,
-		"MESH_NAMESPACE":     meshConfig.Namespace,
+		"CONTROL_PLANE_NAME":                     meshConfig.Name,
+		"MESH_NAMESPACE":                         meshConfig.Namespace,
+		"DEFAULT_INGRESS_GATEWAY_NAMESPACE":      meshConfig.IngressGateway.Namespace,
+		"DEFAULT_INGRESS_GATEWAY_SERVICE":        meshConfig.IngressGateway.Name,
+		"DEFAULT_INGRESS_GATEWAY_SELECTOR_KEY":   meshConfig.IngressGateway.LabelSelectorKey,
+		"DEFAULT_INGRESS_GATEWAY_SELECTOR_VALUE": meshConfig.IngressGateway.LabelSelectorValue,
+		"DEFAULT_GATEWAY_FULL_NAME":              meshConfig.IngressGateway.Namespace + "/" + meshConfig.IngressGateway.Name,
+		//TODO: Should this be concated as a "calculated field" in ControlPlane feature data
 	}
 
 	return cluster.CreateOrUpdateConfigMap(
