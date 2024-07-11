@@ -10,13 +10,17 @@ import (
 	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/platform/capabilities"
 )
+
+const modelRegistryNS = "odh-model-registries"
 
 var (
 	ComponentName = "model-registry-operator"
@@ -59,7 +63,7 @@ func (m *ModelRegistry) GetComponentName() string {
 }
 
 func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Client, logger logr.Logger,
-	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, platform cluster.Platform, _ bool) error {
+	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec, platform cluster.Platform, _ bool, c capabilities.PlatformCapabilities) error {
 	l := m.ConfigComponentLogger(logger, ComponentName, dscispec)
 	var imageParamMap = map[string]string{
 		"IMAGES_MODELREGISTRY_OPERATOR": "RELATED_IMAGE_ODH_MODEL_REGISTRY_OPERATOR_IMAGE",
@@ -85,11 +89,17 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 
 		// Create odh-model-registries namespace
 		// We do not delete this namespace even when ModelRegistry is Removed or when operator is uninstalled.
-		_, err := cluster.CreateNamespace(ctx, cli, "odh-model-registries")
+		namespacedSMCP := fmt.Sprintf("%s/%s", dscispec.ServiceMesh.ControlPlane.Namespace, dscispec.ServiceMesh.ControlPlane.Name)
+		_, err := cluster.CreateNamespace(ctx, cli, modelRegistryNS, cluster.WithAnnotations("service-mesh.opendatahub.io/member-of", namespacedSMCP))
 		if err != nil {
 			return err
 		}
 	}
+
+	if c.Authorization().IsAvailable() && enabled {
+		c.Authorization().ProtectedResources(m.ProtectedResources()...)
+	}
+
 	// Deploy ModelRegistry Operator
 	if err := deploy.DeployManifestsFromPath(ctx, cli, owner, Path, dscispec.ApplicationsNamespace, m.GetComponentName(), enabled); err != nil {
 		return err
@@ -103,4 +113,24 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 	l.Info("apply extra manifests done")
 
 	return nil
+}
+
+func (m *ModelRegistry) ProtectedResources() []capabilities.ProtectedResource {
+	return []capabilities.ProtectedResource{
+		{
+			Schema: capabilities.ResourceSchema{
+				GroupVersionKind: schema.GroupVersionKind{
+					Group:   "modelregistry.opendatahub.io",
+					Version: "v1alpha1",
+					Kind:    "ModelRegistry",
+				},
+				Resources: "modelregistries",
+			},
+			WorkloadSelector: map[string]string{
+				"app.kubernetes.io/component": "model-registry",
+			},
+			HostPaths: []string{"status.URL"},
+			Ports:     []string{"8080"},
+		},
+	}
 }

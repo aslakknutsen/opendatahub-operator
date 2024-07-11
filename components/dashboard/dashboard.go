@@ -20,6 +20,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/platform/capabilities"
 )
 
 var (
@@ -67,6 +68,7 @@ func (d *Dashboard) ReconcileComponent(ctx context.Context,
 	dscispec *dsciv1.DSCInitializationSpec,
 	platform cluster.Platform,
 	currentComponentExist bool,
+	_ capabilities.PlatformCapabilities,
 ) error {
 	var l logr.Logger
 

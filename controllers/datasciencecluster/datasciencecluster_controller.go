@@ -29,6 +29,7 @@ import (
 	buildv1 "github.com/openshift/api/build/v1"
 	imagev1 "github.com/openshift/api/image/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -58,6 +59,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
+	"github.com/opendatahub-io/opendatahub-operator/v2/platform/capabilities"
 )
 
 // DataScienceClusterReconciler reconciles a DataScienceCluster object.
@@ -72,7 +74,8 @@ type DataScienceClusterReconciler struct {
 
 // DataScienceClusterConfig passing Spec of DSCI for reconcile DataScienceCluster.
 type DataScienceClusterConfig struct {
-	DSCISpec *dsciv1.DSCInitializationSpec
+	DSCISpec   *dsciv1.DSCInitializationSpec
+	DSCIStatus *dsciv1.DSCInitializationStatus
 }
 
 const (
@@ -175,6 +178,8 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	case 1:
 		dscInitializationSpec := dsciInstances.Items[0].Spec
 		dscInitializationSpec.DeepCopyInto(r.DataScienceCluster.DSCISpec)
+		dscInitializationStatus := dsciInstances.Items[0].Status
+		dscInitializationStatus.DeepCopyInto(r.DataScienceCluster.DSCIStatus)
 	}
 
 	if instance.ObjectMeta.DeletionTimestamp.IsZero() {
@@ -187,11 +192,15 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 	} else {
 		r.Log.Info("Finalization DataScienceCluster start deleting instance", "name", instance.Name, "finalizer", finalizerName)
+
+		// TODO(mvp) undeploy odh-platform
+
 		for _, component := range allComponents {
 			if err := component.Cleanup(ctx, r.Client, r.DataScienceCluster.DSCISpec); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
+
 		if controllerutil.ContainsFinalizer(instance, finalizerName) {
 			controllerutil.RemoveFinalizer(instance, finalizerName)
 			if err := r.Update(ctx, instance); err != nil {
@@ -239,13 +248,34 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	// Initialize error list, instead of returning errors after every component is deployed
 	var componentErrors *multierror.Error
 
+	capabilitiesRegistry := capabilities.NewRegistry(
+		capabilities.NewAuthorization(
+			conditionsv1.IsStatusConditionTrue(r.DataScienceCluster.DSCIStatus.Conditions, status.CapabilityServiceMeshAuthorization),
+		),
+	)
+
 	for _, component := range allComponents {
-		if instance, err = r.reconcileSubComponent(ctx, instance, component); err != nil {
+		if instance, err = r.reconcileSubComponent(ctx, instance, capabilitiesRegistry, component); err != nil {
 			componentErrors = multierror.Append(componentErrors, err)
 		}
 	}
 
-	// Process errors for components
+	// TODO(mvp): can we have no-capability mode at all? should we then just move on
+	if saveErr := capabilitiesRegistry.Save(ctx, r.Client,
+		cluster.OwnedBy(instance, r.Scheme),
+		cluster.InNamespace(r.DataScienceCluster.DSCISpec.ApplicationsNamespace),
+	); saveErr != nil {
+		return ctrl.Result{}, saveErr
+	}
+
+	if configErr := capabilitiesRegistry.ConfigureCapabilities(ctx, r.Client, r.DataScienceCluster.DSCISpec,
+		cluster.OwnedBy(instance, r.Scheme),
+		cluster.InNamespace(r.DataScienceCluster.DSCISpec.ApplicationsNamespace),
+	); configErr != nil {
+		return ctrl.Result{}, configErr
+	}
+
+	// process errors for components
 	if componentErrors != nil {
 		r.Log.Info("DataScienceCluster Deployment Incomplete.")
 		instance, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dscv1.DataScienceCluster) {
@@ -285,7 +315,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 }
 
 func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context, instance *dscv1.DataScienceCluster,
-	component components.ComponentInterface,
+	capabilities capabilities.PlatformCapabilities, component components.ComponentInterface,
 ) (*dscv1.DataScienceCluster, error) {
 	componentName := component.GetComponentName()
 
@@ -314,7 +344,7 @@ func (r *DataScienceClusterReconciler) reconcileSubComponent(ctx context.Context
 		r.Log.Error(err, "Failed to determine platform")
 		return instance, err
 	}
-	err = component.ReconcileComponent(ctx, r.Client, r.Log, instance, r.DataScienceCluster.DSCISpec, platform, installedComponentValue)
+	err = component.ReconcileComponent(ctx, r.Client, r.Log, instance, r.DataScienceCluster.DSCISpec, platform, installedComponentValue, capabilities)
 
 	if err != nil {
 		// reconciliation failed: log errors, raise event and update status accordingly
@@ -465,9 +495,10 @@ func (r *DataScienceClusterReconciler) SetupWithManager(ctx context.Context, mgr
 		Complete(r)
 }
 
+// -> delete DSCI event from kubeserver-api.
 func (r *DataScienceClusterReconciler) watchDataScienceClusterForDSCI(ctx context.Context) func(client.Object) []reconcile.Request {
 	return func(a client.Object) []reconcile.Request {
-		requestName, err := r.getRequestName(ctx)
+		requestName, err := r.getRequestName(ctx) // <- list instances from local cache...
 		if err != nil {
 			return nil
 		}

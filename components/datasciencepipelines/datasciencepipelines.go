@@ -23,6 +23,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/platform/capabilities"
 )
 
 var (
@@ -70,6 +71,7 @@ func (d *DataSciencePipelines) ReconcileComponent(ctx context.Context,
 	dscispec *dsciv1.DSCInitializationSpec,
 	platform cluster.Platform,
 	_ bool,
+	_ capabilities.PlatformCapabilities,
 ) error {
 	l := d.ConfigComponentLogger(logger, ComponentName, dscispec)
 	var imageParamMap = map[string]string{

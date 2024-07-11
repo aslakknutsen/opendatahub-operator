@@ -17,6 +17,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/platform/capabilities"
 )
 
 var (
@@ -57,13 +58,11 @@ func (c *CodeFlare) GetComponentName() string {
 	return ComponentName
 }
 
-func (c *CodeFlare) ReconcileComponent(ctx context.Context,
-	cli client.Client,
-	logger logr.Logger,
-	owner metav1.Object,
-	dscispec *dsciv1.DSCInitializationSpec,
+func (c *CodeFlare) ReconcileComponent(
+	ctx context.Context, cli client.Client, logger logr.Logger,
+	owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec,
 	platform cluster.Platform,
-	_ bool) error {
+	_ bool, _ capabilities.PlatformCapabilities) error {
 	l := c.ConfigComponentLogger(logger, ComponentName, dscispec)
 	var imageParamMap = map[string]string{
 		"codeflare-operator-controller-image": "RELATED_IMAGE_ODH_CODEFLARE_OPERATOR_IMAGE", // no need mcad, embedded in cfo
