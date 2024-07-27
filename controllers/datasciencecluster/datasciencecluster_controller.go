@@ -265,14 +265,14 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		cluster.OwnedBy(instance, r.Scheme),
 		cluster.InNamespace(r.DataScienceCluster.DSCISpec.ApplicationsNamespace),
 	); saveErr != nil {
-		return ctrl.Result{}, saveErr
+		return ctrl.Result{}, multierror.Append(componentErrors, saveErr)
 	}
 
 	if configErr := capabilitiesRegistry.ConfigureCapabilities(ctx, r.Client, r.DataScienceCluster.DSCISpec,
 		cluster.OwnedBy(instance, r.Scheme),
 		cluster.InNamespace(r.DataScienceCluster.DSCISpec.ApplicationsNamespace),
 	); configErr != nil {
-		return ctrl.Result{}, configErr
+		return ctrl.Result{}, multierror.Append(componentErrors, configErr)
 	}
 
 	// process errors for components
