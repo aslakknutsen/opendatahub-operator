@@ -31,6 +31,7 @@ type Availability interface {
 }
 
 type PlatformRegistry interface {
+	// TODO: Rename/Unify?
 	Save(ctx context.Context, cli client.Client, metaOptions ...cluster.MetaOptions) error
 	ConfigureCapabilities(ctx context.Context, cli client.Client, dsciSpec *dsciv1.DSCInitializationSpec, metaOptions ...cluster.MetaOptions) error
 	// RemoveCapabilities(context.Context, client.Client, *dsciv1.DSCInitializationSpec) error
