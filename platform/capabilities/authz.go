@@ -37,6 +37,7 @@ func NewAuthorization(available bool) AuthorizationCapability {
 
 type Authorization interface {
 	Availability
+	JSONSerializable
 	ProtectedResources(protectedResource ...ProtectedResource)
 }
 
@@ -69,9 +70,18 @@ func (a *AuthorizationCapability) IsRequired() bool {
 
 // Reconcile ensures Authorization capability and component-specific configuration is wired when needed.
 func (a *AuthorizationCapability) Reconcile(ctx context.Context, cli client.Client, metaOptions ...cluster.MetaOptions) error {
+	roleName := "platform-protected-resources-watcher"
 	if a.IsRequired() {
-		return CreateOrUpdateAuthzBindings(ctx, cli, a.protectedResources, metaOptions...)
+		return CreateOrUpdateAuthzBindings(ctx, cli, roleName, a.getProtectedResourceSchemas(a.protectedResources), metaOptions...)
 	}
 
-	return DeleteAuthzBindings(ctx, cli)
+	return DeleteAuthzBindings(ctx, cli, roleName)
+}
+
+func (a *AuthorizationCapability) getProtectedResourceSchemas(protectedResources []ProtectedResource) []ResourceSchema {
+	schemas := []ResourceSchema{}
+	for _, val := range protectedResources {
+		schemas = append(schemas, val.Schema)
+	}
+	return schemas
 }

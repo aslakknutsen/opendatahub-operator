@@ -11,11 +11,9 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
-const roleName = "platform-protected-resources-watcher"
-
 // CreateOrUpdateAuthzBindings.
-func CreateOrUpdateAuthzBindings(ctx context.Context, cli client.Client, protectedResources []ProtectedResource, metaOptions ...cluster.MetaOptions) error {
-	if _, err := cluster.CreateOrUpdateClusterRole(ctx, cli, roleName, createAuthRules(protectedResources), metaOptions...); err != nil {
+func CreateOrUpdateAuthzBindings(ctx context.Context, cli client.Client, roleName string, schemas []ResourceSchema, metaOptions ...cluster.MetaOptions) error {
+	if _, err := cluster.CreateOrUpdateClusterRole(ctx, cli, roleName, createAuthRules(schemas), metaOptions...); err != nil {
 		return fmt.Errorf("failed creating cluster role: %w", err)
 	}
 
@@ -28,7 +26,7 @@ func CreateOrUpdateAuthzBindings(ctx context.Context, cli client.Client, protect
 }
 
 // DeleteAuthzBindings attempts to remove created authz role/bindings but does not fail if these are not existing in the cluster.
-func DeleteAuthzBindings(ctx context.Context, cli client.Client) error {
+func DeleteAuthzBindings(ctx context.Context, cli client.Client, roleName string) error {
 	if err := cluster.DeleteClusterRoleBinding(ctx, cli, roleName); !k8serr.IsNotFound(err) {
 		return err
 	}
@@ -39,12 +37,12 @@ func DeleteAuthzBindings(ctx context.Context, cli client.Client) error {
 	return nil
 }
 
-func createAuthRules(protectedResources []ProtectedResource) []rbacv1.PolicyRule {
+func createAuthRules(schemas []ResourceSchema) []rbacv1.PolicyRule {
 	apiGroups := make([]string, 0)
 	resources := make([]string, 0)
-	for _, resource := range protectedResources {
-		apiGroups = append(apiGroups, resource.Schema.GroupVersionKind.Group)
-		resources = append(resources, resource.Schema.Resources)
+	for _, schema := range schemas {
+		apiGroups = append(apiGroups, schema.GroupVersionKind.Group)
+		resources = append(resources, schema.Resources)
 	}
 
 	return []rbacv1.PolicyRule{

@@ -99,6 +99,9 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 	if c.Authorization().IsAvailable() && enabled {
 		c.Authorization().ProtectedResources(m.ProtectedResources()...)
 	}
+	if c.Routing().IsAvailable() && enabled {
+		c.Routing().Route(getResourceSchema())
+	}
 
 	// Deploy ModelRegistry Operator
 	if err := deploy.DeployManifestsFromPath(ctx, cli, owner, Path, dscispec.ApplicationsNamespace, m.GetComponentName(), enabled); err != nil {
@@ -115,17 +118,21 @@ func (m *ModelRegistry) ReconcileComponent(ctx context.Context, cli client.Clien
 	return nil
 }
 
+func getResourceSchema() capabilities.ResourceSchema {
+	return capabilities.ResourceSchema{
+		GroupVersionKind: schema.GroupVersionKind{
+			Group:   "modelregistry.opendatahub.io",
+			Version: "v1alpha1",
+			Kind:    "ModelRegistry",
+		},
+		Resources: "modelregistries",
+	}
+}
+
 func (m *ModelRegistry) ProtectedResources() []capabilities.ProtectedResource {
 	return []capabilities.ProtectedResource{
 		{
-			Schema: capabilities.ResourceSchema{
-				GroupVersionKind: schema.GroupVersionKind{
-					Group:   "modelregistry.opendatahub.io",
-					Version: "v1alpha1",
-					Kind:    "ModelRegistry",
-				},
-				Resources: "modelregistries",
-			},
+			Schema: getResourceSchema(),
 			WorkloadSelector: map[string]string{
 				"component": "model-registry",
 			},

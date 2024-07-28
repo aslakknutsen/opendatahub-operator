@@ -30,6 +30,10 @@ type Availability interface {
 	IsAvailable() bool
 }
 
+type JSONSerializable interface {
+	AsJSON() ([]byte, error)
+}
+
 type PlatformRegistry interface {
 	// TODO: Rename/Unify?
 	Save(ctx context.Context, cli client.Client, metaOptions ...cluster.MetaOptions) error
@@ -42,6 +46,7 @@ type PlatformRegistry interface {
 // Consumer.
 type PlatformCapabilities interface {
 	Authorization() Authorization
+	Routing() Routing
 }
 
 // Registry used by Components to register their Capabilities configuration.
@@ -49,12 +54,13 @@ type Registry struct {
 	// owner           metav1.ObjectMeta
 	// targetNamespace string
 	authorization AuthorizationCapability
+	routing       RoutingCapability
 }
 
 // TODO: include OwnedBy for DSC clean up, both Registry and Handler.
 func (r *Registry) ConfigureCapabilities(ctx context.Context, cli client.Client, dsciSpec *dsciv1.DSCInitializationSpec, metaOptions ...cluster.MetaOptions) error {
 	// TODO(mvp): make it a dynamic slice
-	handlers := []Handler{&r.authorization}
+	handlers := []Handler{&r.authorization, &r.routing}
 
 	isRequired := func(handlers ...Handler) bool {
 		for _, handler := range handlers {
@@ -92,8 +98,8 @@ func (r *Registry) definePlatformDeployment(required bool) feature.FeaturesProvi
 		)
 	}
 }
-func NewRegistry(authorization AuthorizationCapability) *Registry {
-	return &Registry{authorization: authorization}
+func NewRegistry(authorization AuthorizationCapability, routing RoutingCapability) *Registry {
+	return &Registry{authorization: authorization, routing: routing}
 }
 
 var _ PlatformCapabilities = (*Registry)(nil)
@@ -102,18 +108,26 @@ func (r *Registry) Authorization() Authorization { //nolint:ireturn //reason TOD
 	return &r.authorization
 }
 
-var _ PlatformRegistry = (*Registry)(nil)
+func (r *Registry) Routing() Routing { //nolint:ireturn //reason TODO figure out return type
+	return &r.routing
+}
 
 func (r *Registry) Save(ctx context.Context, cli client.Client, metaOptions ...cluster.MetaOptions) error {
 	// if requested at all
-	platformSettings := make(map[string]string)
 
-	authzJSON, authzErr := r.authorization.AsJSON()
-	if authzErr != nil {
-		return authzErr
+	serializers := map[string]JSONSerializable{
+		"authorization": &r.authorization,
+		"routing":       &r.routing,
 	}
 
-	platformSettings["authorization"] = string(authzJSON)
+	platformSettings := make(map[string]string)
+	for key, value := range serializers {
+		jsonOutput, serializeErr := value.AsJSON()
+		if serializeErr != nil {
+			return serializeErr
+		}
+		platformSettings[key] = string(jsonOutput)
+	}
 
 	metaOptions = append(metaOptions, cluster.WithLabels(
 		labels.K8SCommon.PartOf, "opendatahub", // TODO revise

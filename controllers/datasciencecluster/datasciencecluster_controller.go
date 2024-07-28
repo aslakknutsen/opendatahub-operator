@@ -252,6 +252,9 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		capabilities.NewAuthorization(
 			conditionsv1.IsStatusConditionTrue(r.DataScienceCluster.DSCIStatus.Conditions, status.CapabilityServiceMeshAuthorization),
 		),
+		capabilities.NewRouting(
+			conditionsv1.IsStatusConditionTrue(r.DataScienceCluster.DSCIStatus.Conditions, status.CapabilityServiceMesh),
+		),
 	)
 
 	for _, component := range allComponents {
