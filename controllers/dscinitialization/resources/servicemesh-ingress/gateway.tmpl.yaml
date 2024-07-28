@@ -8,11 +8,11 @@ spec:
     {{ .ControlPlane.IngressGateway.LabelSelectorKey }} : {{ .ControlPlane.IngressGateway.LabelSelectorValue }}
   servers:
     - hosts:
-        - '*.{{ .Domain }}'
+        - '*'
       port:
         name: https
         number: 443
         protocol: HTTPS
       tls:
-        credentialName: {{ .Secret }}
+        credentialName: {{ .ControlPlane.IngressGateway.Name }}-certs
         mode: SIMPLE
